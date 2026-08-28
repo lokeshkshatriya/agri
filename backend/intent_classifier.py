@@ -6,18 +6,11 @@ class AgriIntentClassifier:
     """
     INTENTS = {
         "OPEN_CAMERA": {
-            "keywords_te": ["కెమెరా", "ఫోటో", "పిక్చర్", "తీయి", "ఆన్ చేయి", "చూపించు", "చిత్రం", "కెమెరాను"],
-            "keywords_en": ["camera", "photo", "picture", "snap", "take picture", "open camera", "turn on camera", "viewfinder"],
+            "keywords_te": ["కెమెరా", "ఫోటో", "పిక్చర్", "తీయి", "ఆన్ చేయి", "చూపించు", "చిత్రం", "కెమెరాను", "స్కాన్", "స్కాన్ చేయి", "ఫోటో తీయి", "ఆకును చూడు"],
+            "keywords_en": ["camera", "photo", "picture", "snap", "take picture", "open camera", "turn on camera", "viewfinder", "scan", "scan this crop", "scan leaf", "scan crop", "scan plant"],
             "action_name_te": "కెమెరాను ప్రారంభించడం (Open Camera)",
             "action_name_en": "Activating Live Camera Viewfinder",
             "action_type": "CAMERA_ACTIVATE"
-        },
-        "SCAN_DISEASE": {
-            "keywords_te": ["ఆకు", "మచ్చ", "తెగులు", "రోగం", "పసుపు", "నలుపు", "ఎండిపో", "పురుగు", "స్కాన్", "వ్యాధి", "చూడు", "ఏమైంది", "రాలిపోతుంది"],
-            "keywords_en": ["leaf", "spot", "disease", "blight", "yellow", "black", "rot", "drying", "fungus", "scan", "what happened", "sick leaf", "cure"],
-            "action_name_te": "పంట తెగులు & రక్షణ విశ్లేషణ (Crop Disease Diagnostic)",
-            "action_name_en": "Crop Disease Diagnosis & Prediction",
-            "action_type": "DISEASE_DIAGNOSTIC"
         },
         "CHECK_WEATHER": {
             "keywords_te": ["వాతావరణం", "వర్షం", "ఎండ", "గాలి", "మంచు", "పిచికారీ", "మందు కొట్ట", "స్ప్రే", "చల్లవచ్చా"],
@@ -84,12 +77,8 @@ class AgriIntentClassifier:
             action_type = intent_meta["action_type"]
 
             if best_intent == "OPEN_CAMERA":
-                reply_text = "📷 మీ ఫోన్ కెమెరా ఆన్ చేయబడింది. ఆకును సరిగ్గా ఫ్రేమ్‌లో ఉంచి 'స్కాన్ చేయి' అని చెప్పండి." if current_lang == "te" else "📷 Live camera is active. Point at the leaf and say 'Scan disease'."
-                voice_text = "కెమెరా ఆన్ చేయబడింది. ఆకును చూపించి స్కాన్ చేయండి." if current_lang == "te" else "Camera is now active. Position the leaf and say scan."
-
-            elif best_intent == "SCAN_DISEASE":
-                reply_text = "🧪 ఆకు విశ్లేషణ: ఆకుమచ్చ తెగులు ప్రారంభ లక్షణాలు (92% నిర్ధారణ). నివారణ: 2.5 గ్రాముల మాంకోజెబ్ మందును లీటరు నీటిలో కలిపి పిచికారీ చేయండి, లేదా 5% వేపనూనె వాడండి." if current_lang == "te" else "🧪 Leaf Analysis: Early Blight detected (92% confidence). Recommended treatment: Mancozeb 75% WP @ 2.5 g/L or 5% organic Neem seed extract."
-                voice_text = "ఆకులో మచ్చలు గుర్తించబడ్డాయి. లీటరు నీటికి రెండున్నర గ్రాముల మాంకోజెబ్ మందును కలిపి పిచికారీ చేయండి." if current_lang == "te" else "Leaf blight symptoms identified. Spray Mancozeb at 2.5 grams per liter."
+                reply_text = "📷 మీ ఫోన్ కెమెరా ఆన్ చేయబడింది. ఆకును ఫ్రేమ్‌లో ఉంచి 'Snap & Scan' బటన్ నొక్కండి." if current_lang == "te" else "📷 Camera activated. Place the leaf in the frame and tap 'Snap & Scan'."
+                voice_text = "కెమెరా ఆన్ చేయబడింది. ఆకును చూపించి స్కాన్ చేయండి." if current_lang == "te" else "Camera is active. Position the leaf and tap scan."
 
             elif best_intent == "CHECK_WEATHER":
                 reply_text = "🌦️ నేటి వాతావరణ సమాచారం: ఉష్ణోగ్రత 29°C, తేమ 62%, గాలి వేగం 9 km/h. వర్షం అవకాశం తక్కువ (<15%). ఉదయం 7 నుండి 10 గంటల మధ్య మందులు పిచికారీ చేయడానికి అనుకూలం." if current_lang == "te" else "🌦️ Live Weather: 29°C, Humidity 62%, Wind 9 km/h. Rain probability <15%. SAFE TO SPRAY between 7:00 AM and 10:00 AM."

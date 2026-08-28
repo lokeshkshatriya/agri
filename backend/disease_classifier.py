@@ -36,17 +36,50 @@ class HybridDiseaseClassifier:
                 cls.PLANTVILLAGE_DB = json.load(f)["classes"]
 
     @classmethod
-    def analyze_image(cls, image_bytes: bytes, lang: str = "te") -> Dict[str, Any]:
+    def analyze_image(cls, image_bytes: bytes, lang: str = "te", crop_filter: list = None) -> Dict[str, Any]:
         cls.load_model()
         pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         tensor = cls.TRANSFORM(pil_img).unsqueeze(0)
 
+        # Mapping of user crop types to keywords in the 38 HuggingFace model labels
+        crop_alias_map = {
+            "tomato": ["tomato"],
+            "chilli": ["pepper", "chilli", "bell pepper"],
+            "cotton": ["cotton", "soybean"],
+            "groundnut": ["groundnut", "peanut", "soybean"],
+            "maize": ["corn", "maize"],
+            "sugarcane": ["sugarcane", "corn"],
+            "wheat": ["wheat", "corn"],
+            "rice": ["rice", "corn"],
+        }
+
         with torch.no_grad():
             logits = cls.MODEL(tensor).logits
             probs = torch.softmax(logits, dim=1)[0]
-            pred_idx = torch.argmax(probs).item()
-            confidence = probs[pred_idx].item() * 100.0
-            predicted_label = cls.MODEL.config.id2label[pred_idx]
+
+            # If user has saved crops, filter the classifier candidates
+            allowed_indices = []
+            if crop_filter and len(crop_filter) > 0:
+                allowed_keywords = []
+                for c in crop_filter:
+                    c_clean = c.lower().strip()
+                    allowed_keywords.extend(crop_alias_map.get(c_clean, [c_clean]))
+
+                for idx, label_name in cls.MODEL.config.id2label.items():
+                    ln_clean = label_name.lower()
+                    if any(kw in ln_clean for kw in allowed_keywords):
+                        allowed_indices.append(idx)
+
+            if allowed_indices:
+                filtered_probs = probs[allowed_indices]
+                best_sub_idx = torch.argmax(filtered_probs).item()
+                pred_idx = allowed_indices[best_sub_idx]
+                confidence = probs[pred_idx].item() * 100.0
+                predicted_label = cls.MODEL.config.id2label[pred_idx]
+            else:
+                pred_idx = torch.argmax(probs).item()
+                confidence = probs[pred_idx].item() * 100.0
+                predicted_label = cls.MODEL.config.id2label[pred_idx]
 
         # Map to disease info database
         db = cls.PLANTVILLAGE_DB
