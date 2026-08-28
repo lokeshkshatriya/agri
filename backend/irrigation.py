@@ -79,7 +79,8 @@ def get_irrigation_recommendation(lat: float, lon: float, crop_type: str, growth
     crop_key = crop_type.lower().strip()
     stage_key = growth_stage.lower().strip()
 
-    if crop_key not in CROP_WATER_NEEDS:
+    used_fallback_crop = crop_key not in CROP_WATER_NEEDS
+    if used_fallback_crop:
         crop_key = "tomato"
     if stage_key not in ["sowing", "vegetative", "flowering", "harvest"]:
         stage_key = "vegetative"
@@ -143,35 +144,37 @@ def get_irrigation_recommendation(lat: float, lon: float, crop_type: str, growth
             if res.status_code == 200:
                 data = res.json()
                 hourly = data.get("hourly", {})
-                precip = hourly.get("precipitation", [])
                 temps = hourly.get("temperature_2m", [])
-                humids = hourly.get("relative_humidity_2m", [])
+                humidities = hourly.get("relative_humidity_2m", [])
+                precips = hourly.get("precipitation", [])
 
-                # 48h past = first 48 points, next 72h = next 72 points
-                if len(precip) >= 120:
-                    recent_rain_48h = sum(precip[:48])
-                    forecast_rain_3d = sum(precip[48:120])
-                    if temps: avg_temp = sum(temps[48:120]) / len(temps[48:120])
-                    if humids: avg_humidity = sum(humids[48:120]) / len(humids[48:120])
-                else:
-                    forecast_rain_3d = sum(precip)
+                # 48 past hours (2 days)
+                if len(precips) >= 48:
+                    recent_rain_48h = sum(precips[:48])
+                    # next 72 forecast hours (3 days)
+                    forecast_rain_3d = sum(precips[48:120])
+                
+                if temps: avg_temp = sum(temps[-72:]) / max(1, len(temps[-72:]))
+                if humidities: avg_humidity = sum(humidities[-72:]) / max(1, len(humidities[-72:]))
                 weather_fetched = True
         except Exception as e:
             print(f"Open-Meteo fallback request failed: {e}")
 
-    # 3. Handle Complete Weather Failure (Graceful Honest Fallback)
+    # 3. Final Fallback (If weather APIs are unreachable)
     if not weather_fetched:
-        today = datetime.now()
-        next_check = (today + timedelta(days=2)).strftime("%d %b %Y")
+        next_check = (datetime.now() + timedelta(days=3)).strftime("%d %b %Y")
+        fallback_note_en = f" (Note: '{crop_type}' isn't in our crop database yet, showing Tomato as the closest reference.)" if used_fallback_crop else ""
+        fallback_note_te = f" (గమనిక: '{crop_type}' మా డేటాబేస్లో లేదు, టమాటా డేటాను సూచనగా చూపిస్తున్నాం.)" if used_fallback_crop else ""
         return {
             "crop_type": crop_name,
             "growth_stage": stage_key.capitalize(),
-            "recommendation": "Unable to fetch live forecast. Please check your local rainfall forecast manually." if lang == "en" else "ప్రత్యక్ష వాతావరణ సమాచారం అందుబాటులో లేదు. దయచేసి స్థానిక వర్షపాతాన్ని పరిశీలించండి.",
-            "reason": f"Typical water requirement for {crop_name} during {stage_key} stage is ~{weekly_need_mm} mm/week. If soil is dry, provide light irrigation." if lang == "en" else f"{crop_name} పంట {stage_key} దశలో వారానికి ~{weekly_need_mm} మి.మీ నీరు అవసరం. నేల తేమను బట్టి నీరు పెట్టండి.",
+            "recommendation": "Maintain standard regional schedule" if lang == "en" else "సాధారణ పద్ధతి ప్రకారం నీరు పెట్టండి",
+            "reason": (f"Typical water requirement for {crop_name} during {stage_key} stage is ~{weekly_need_mm} mm/week. If soil is dry, provide light irrigation." if lang == "en" else f"{crop_name} పంట {stage_key} దశలో వారానికి ~{weekly_need_mm} మి.మీ నీరు అవసరం. నేల తేమను బట్టి నీరు పెట్టండి.") + (fallback_note_te if lang == "te" else fallback_note_en),
             "next_check_date": next_check,
             "rainfall_expected_mm": 0.0,
             "confidence": "estimate based on regional agronomic baseline (weather service unreachable)",
-            "voice_text": f"Weather service is unreachable. {crop_name} needs about {weekly_need_mm} millimeters of water per week." if lang == "en" else f"{crop_name} పంటకు వారానికి దాదాపు {weekly_need_mm} మిల్లీమీటర్ల నీరు అవసరం."
+            "used_fallback_crop": used_fallback_crop,
+            "voice_text": (f"Weather service is unreachable. {crop_name} needs about {weekly_need_mm} millimeters of water per week." if lang == "en" else f"{crop_name} పంటకు వారానికి దాదాపు {weekly_need_mm} మిల్లీమీటర్ల నీరు అవసరం.") + (fallback_note_te if lang == "te" else fallback_note_en)
         }
 
     # 4. Irrigation Decision Logic
@@ -204,8 +207,15 @@ def get_irrigation_recommendation(lat: float, lon: float, crop_type: str, growth
 
     # Rule D: Moderate condition -> Estimate days until next irrigation
     else:
-        # Calculate days of moisture remaining
-        days_estimate = max(2, min(5, round((daily_crop_need * 3.5) / max(1.0, daily_crop_need))))
+        # Estimate how many days of "moisture buffer" remain: how much of the
+        # weekly need is still unmet after recent rain, divided by daily need,
+        # then nudged by any rain forecast in the next 3 days.
+        unmet_mm = max(0.0, weekly_need_mm - recent_rain_48h)
+        raw_days = unmet_mm / max(1.0, daily_crop_need)
+        # Light forecast rain buys a bit more time before irrigation is needed
+        if forecast_rain_3d > 0:
+            raw_days += (forecast_rain_3d / max(1.0, daily_crop_need)) * 0.5
+        days_estimate = max(1, min(6, round(raw_days)))
         recommendation_en = f"Irrigate in {days_estimate} days"
         recommendation_te = f"{days_estimate} రోజుల తర్వాత నీరు పెట్టండి"
         reason_en = f"{crop_name} in {stage_key} stage has a typical requirement of {weekly_need_mm} mm/week (sensitivity: {sensitivity}). Light rain ({forecast_rain_3d:.1f} mm) is expected."
@@ -214,19 +224,23 @@ def get_irrigation_recommendation(lat: float, lon: float, crop_type: str, growth
 
     rec_text = recommendation_te if lang == "te" else recommendation_en
     reason_text = reason_te if lang == "te" else reason_en
+
+    fallback_note_en = f" (Note: '{crop_type}' isn't in our crop database yet, showing Tomato as the closest reference.)" if used_fallback_crop else ""
+    fallback_note_te = f" (గమనిక: '{crop_type}' మా డేటాబేస్లో లేదు, టమాటా డేటాను సూచనగా చూపిస్తున్నాం.)" if used_fallback_crop else ""
     
     if lang == "te":
-        voice_text = f"{crop_name} పంటకు నీటిపారుదల సలహా: {rec_text}. {reason_text}"
+        voice_text = f"{crop_name} పంటకు నీటిపారుదల సలహా: {rec_text}. {reason_text}{fallback_note_te}"
     else:
-        voice_text = f"Irrigation advice for {crop_name}: {rec_text}. {reason_text}"
+        voice_text = f"Irrigation advice for {crop_name}: {rec_text}. {reason_text}{fallback_note_en}"
 
     return {
         "crop_type": crop_name,
         "growth_stage": stage_key.capitalize(),
         "recommendation": rec_text,
-        "reason": reason_text,
+        "reason": reason_text + (fallback_note_te if lang == "te" else fallback_note_en),
         "next_check_date": next_check,
         "rainfall_expected_mm": round(forecast_rain_3d, 1),
         "confidence": "estimate based on regional weather data & typical crop requirements",
+        "used_fallback_crop": used_fallback_crop,
         "voice_text": voice_text
     }

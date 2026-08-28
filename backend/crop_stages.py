@@ -434,7 +434,8 @@ def get_crop_stage_precautions(crop_type: str, stage: str, lang: str = "en") -> 
     stage_k = STAGE_MAPPINGS.get(stage.lower().strip(), "Growing (leaves & stem)")
 
     # Fallback to tomato if crop is missing
-    if crop_k not in CROP_STAGE_RISKS:
+    used_fallback_crop = crop_k not in CROP_STAGE_RISKS
+    if used_fallback_crop:
         crop_k = "tomato"
 
     crop_data = CROP_STAGE_RISKS[crop_k]
@@ -451,22 +452,26 @@ def get_crop_stage_precautions(crop_type: str, stage: str, lang: str = "en") -> 
             "action": action
         })
 
+    fallback_note_en = f" (Note: '{crop_type}' isn't in our crop database yet, showing Tomato precautions as the closest reference.)" if used_fallback_crop else ""
+    fallback_note_te = f" (గమనిక: '{crop_type}' మా డేటాబేస్లో లేదు, టమాటా సూచనలను చూపిస్తున్నాం.)" if used_fallback_crop else ""
+
     # Localized Voice Script
     if formatted_risks:
         top_risk = formatted_risks[0]
         if lang == "te":
-            voice_text = f"{crop_type} పంట {stage_k} దశలో ముఖ్యమైన ముప్పు: {top_risk['risk_name']}. {top_risk['action']}"
+            voice_text = f"{crop_type} పంట {stage_k} దశలో ముఖ్యమైన ముప్పు: {top_risk['risk_name']}. {top_risk['action']}{fallback_note_te}"
         else:
-            voice_text = f"Key precaution for {crop_type} at {stage_k} stage: {top_risk['risk_name']}. {top_risk['action']}"
+            voice_text = f"Key precaution for {crop_type} at {stage_k} stage: {top_risk['risk_name']}. {top_risk['action']}{fallback_note_en}"
     else:
         if lang == "te":
-            voice_text = f"{crop_type} పంటకు సాధారణ పర్యవేక్షణ కొనసాగించండి."
+            voice_text = f"{crop_type} పంటకు సాధారణ పర్యవేక్షణ కొనసాగించండి.{fallback_note_te}"
         else:
-            voice_text = f"Maintain regular crop monitoring for {crop_type}."
+            voice_text = f"Maintain regular crop monitoring for {crop_type}.{fallback_note_en}"
 
     return {
         "crop_type": crop_type,
         "stage": stage_k,
         "risks": formatted_risks,
+        "used_fallback_crop": used_fallback_crop,
         "voice_text": voice_text
     }
