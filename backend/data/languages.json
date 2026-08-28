@@ -1,0 +1,38 @@
+{
+  "te": {
+    "app_title": "అగ్రి సహాయక్",
+    "app_tagline": "రైతుల కోసం వాయిస్-ఆధారిత స్మార్ట్ వ్యవసాయ సలహాదారు",
+    "voice_status_listening": "🎙️ వినబడుతోంది... మాట్లాడండి...",
+    "voice_status_idle": "🎙️ మైక్ నొక్కండి లేదా మాట్లాడండి (Tap to Speak)",
+    "chat_placeholder": "మీ ప్రశ్నను ఇక్కడ మాట్లాడండి లేదా టైప్ చేయండి...",
+    "auto_voice_toggle": "🔊 వాయిస్ సమాధానం (Audio)",
+    "quick_prompts_title": "💡 త్వరిత వాయిస్ ఆదేశాలు (Quick Prompts):",
+    "prompt_camera": "📷 కెమెరా ఆన్ చేయి",
+    "prompt_disease": "🧪 ఆకు మీద మచ్చలు ఉన్నాయి చూడు",
+    "prompt_weather": "🌦️ రేపు మందు కొట్టొచ్చా?",
+    "prompt_irrigation": "💧 ఎండగా ఉంది నీళ్లు పెట్టాలా?",
+    "prompt_soil": "🌱 ఎరువు ఎంత బస్తాలు వేయాలి?",
+    "prompt_pest": "⚠️ పురుగుల ముప్పు ఉందా?",
+    "intent_identified": "గుర్తించబడిన అంశం",
+    "confidence": "ఖచ్చితత్వం",
+    "kisan_helpline": "కిసాన్ కాల్ సెంటర్: 1800-180-1551"
+  },
+  "en": {
+    "app_title": "AgriSahayak",
+    "app_tagline": "Accessibility-First Voice-Commanded Smart Crop Advisory",
+    "voice_status_listening": "🎙️ Listening... Speak your query...",
+    "voice_status_idle": "🎙️ Tap Mic or Speak naturally",
+    "chat_placeholder": "Speak or type your farming question...",
+    "auto_voice_toggle": "🔊 Auto Audio Narration",
+    "quick_prompts_title": "💡 Quick Spoken Prompts:",
+    "prompt_camera": "📷 Open camera for leaf photo",
+    "prompt_disease": "🧪 Black spots on leaves, what disease?",
+    "prompt_weather": "🌦️ Can I spray pesticide tomorrow?",
+    "prompt_irrigation": "💧 It is very dry, should I irrigate?",
+    "prompt_soil": "🌱 How many bags of fertilizer needed?",
+    "prompt_pest": "⚠️ Any pest outbreak risk?",
+    "intent_identified": "Identified Intent",
+    "confidence": "Match Confidence",
+    "kisan_helpline": "Kisan Call Center: 1800-180-1551"
+  }
+}
