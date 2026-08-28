@@ -30,6 +30,15 @@ interface ChatMessage {
     rainfall_expected_mm: number;
     confidence: string;
   };
+  soilData?: {
+    nitrogen: { value: number; unit: string; status: string; label: string; advice: string; band_key: string };
+    phosphorus: { value: number; unit: string; status: string; label: string; advice: string; band_key: string };
+    potassium: { value: number; unit: string; status: string; label: string; advice: string; band_key: string };
+    ph: { value: number; unit: string; status: string; label: string; advice: string; band_key: string };
+    crop_fit?: { is_well_suited: boolean; verdict: string; badge: string };
+    overall_summary: string;
+    disclaimer: string;
+  };
   diagnosisData?: {
     cropName: string;
     diseaseName: string;
@@ -107,6 +116,15 @@ export default function Home() {
 
   // Drawer state for Screen 3
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Soil Health Card State
+  const [soilHealthModalOpen, setSoilHealthModalOpen] = useState(false);
+  const [soilTargetCrop, setSoilTargetCrop] = useState<string>("tomato");
+  const [soilN, setSoilN] = useState<string>("240");
+  const [soilP, setSoilP] = useState<string>("15");
+  const [soilK, setSoilK] = useState<string>("210");
+  const [soilPh, setSoilPh] = useState<string>("6.8");
+  const [soilSubmitting, setSoilSubmitting] = useState(false);
 
   // My Crops State (localStorage backed)
   const [savedCrops, setSavedCrops] = useState<SavedCrop[]>([]);
@@ -538,6 +556,108 @@ export default function Home() {
       setMessages((prev) => [...prev, errMsg]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Submit Soil Health Card Analysis
+  const handleSoilSubmit = async () => {
+    const numN = parseFloat(soilN) || 0;
+    const numP = parseFloat(soilP) || 0;
+    const numK = parseFloat(soilK) || 0;
+    const numPh = parseFloat(soilPh) || 7.0;
+
+    const cropNames: Record<string, { en: string; te: string }> = {
+      tomato: { en: "Tomato", te: "టమాటా" },
+      rice: { en: "Rice", te: "వరి" },
+      chilli: { en: "Chilli", te: "మిరప" },
+      cotton: { en: "Cotton", te: "పత్తి" },
+      groundnut: { en: "Groundnut", te: "వేరుశనగ" },
+      maize: { en: "Maize", te: "మొక్కజొన్న" },
+      sugarcane: { en: "Sugarcane", te: "చెరకు" },
+      wheat: { en: "Wheat", te: "గోధుమ" },
+    };
+    const cropLabel = cropNames[soilTargetCrop.toLowerCase()]?.[lang] || soilTargetCrop;
+
+    const userPrompt =
+      lang === "te"
+        ? `🧪 నేల పరీక్ష విశ్లేషణ (${cropLabel}): N=${numN}, P=${numP}, K=${numK}, pH=${numPh}`
+        : `🧪 Soil Health Analysis (${cropLabel}): N=${numN}, P=${numP}, K=${numK}, pH=${numPh}`;
+
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      sender: "user",
+      text: userPrompt,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setCurrentScreen("ask");
+    setLoading(true);
+    setSoilSubmitting(true);
+
+    try {
+      const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const res = await fetch(`http://${host}:8000/api/soil/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          n: numN,
+          p: numP,
+          k: numK,
+          ph: numPh,
+          crop_type: soilTargetCrop,
+          lang,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const data = await res.json();
+
+      const botMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "assistant",
+        text: data.overall_summary,
+        intent: "SOIL_HEALTH",
+        confidence: 98,
+        actionName: `${cropLabel}: ${lang === "te" ? "నేల ఆరోగ్య కార్డు" : "Soil Health Card"}`,
+        audioB64: data.audio_b64,
+        soilData: {
+          nitrogen: data.nitrogen,
+          phosphorus: data.phosphorus,
+          potassium: data.potassium,
+          ph: data.ph,
+          crop_fit: data.crop_fit,
+          overall_summary: data.overall_summary,
+          disclaimer: data.disclaimer,
+        },
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+
+      if (autoSpeak && data.audio_b64 && audioPlayerRef.current) {
+        audioPlayerRef.current.src = data.audio_b64;
+        audioPlayerRef.current.play().catch((e) => console.log("Audio prevented:", e));
+      }
+    } catch (err) {
+      console.error("Soil analysis request error:", err);
+      const errMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "assistant",
+        text:
+          lang === "te"
+            ? "నేల పరీక్ష వివరాలను విశ్లేషించడంలో సమస్య ఏర్పడింది. దయచేసి మళ్లీ ప్రయత్నించండి."
+            : "Could not process soil analysis. Please check your network and try again.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setLoading(false);
+      setSoilSubmitting(false);
     }
   };
 
@@ -1338,6 +1458,144 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
+                    ) : msg.soilData ? (
+                      /* SOIL HEALTH CARD INTERPRETATION */
+                      <div className="space-y-3">
+                        {/* Overall Summary Notice */}
+                        <div className="bg-[#EAF3E8] border border-[#2D5A27]/30 rounded-2xl p-3 space-y-1">
+                          <span className="text-xs font-extrabold text-[#2D5A27] flex items-center space-x-1">
+                            <span>🧪</span>
+                            <span>{lang === "te" ? "నేల పోషకాల విశ్లేషణ (Soil Summary):" : "Soil Health Assessment:"}</span>
+                          </span>
+                          <p className="text-xs text-[#2A2928] font-semibold leading-relaxed">
+                            {msg.soilData.overall_summary}
+                          </p>
+                        </div>
+
+                        {/* Crop Suitability Fit (if crop was specified) */}
+                        {msg.soilData.crop_fit && (
+                          <div
+                            className={`p-3 rounded-2xl border flex flex-col space-y-1 text-xs ${
+                              msg.soilData.crop_fit.is_well_suited
+                                ? "bg-emerald-50/80 border-emerald-300 text-emerald-950"
+                                : "bg-amber-50/90 border-amber-300 text-amber-950"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between font-extrabold">
+                              <span>🌾 {lang === "te" ? "పంట అనుకూలత:" : "Crop Suitability:"}</span>
+                              <span className="text-[10px] bg-white px-2 py-0.5 rounded-full shadow-2xs border">
+                                {msg.soilData.crop_fit.badge}
+                              </span>
+                            </div>
+                            <p className="text-xs font-medium">{msg.soilData.crop_fit.verdict}</p>
+                          </div>
+                        )}
+
+                        {/* 4-Grid Nutrient Classification (N, P, K, pH) */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* Nitrogen */}
+                          <div className="bg-white border border-[#E5E3DC] rounded-xl p-2.5 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-[#2A2928]">🌱 {lang === "te" ? "నత్రజని (N)" : "Nitrogen (N)"}</span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  msg.soilData.nitrogen.band_key === "low"
+                                    ? "bg-red-100 text-red-800"
+                                    : msg.soilData.nitrogen.band_key === "high"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-emerald-100 text-emerald-900"
+                                }`}
+                              >
+                                {msg.soilData.nitrogen.status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-black text-[#2D5A27] block">
+                              {msg.soilData.nitrogen.value} kg/ha
+                            </span>
+                            <p className="text-[10px] text-[#4A4947] leading-tight">
+                              📌 {msg.soilData.nitrogen.advice}
+                            </p>
+                          </div>
+
+                          {/* Phosphorus */}
+                          <div className="bg-white border border-[#E5E3DC] rounded-xl p-2.5 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-[#2A2928]">🌾 {lang === "te" ? "భాస్వరం (P)" : "Phosphorus (P)"}</span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  msg.soilData.phosphorus.band_key === "low"
+                                    ? "bg-red-100 text-red-800"
+                                    : msg.soilData.phosphorus.band_key === "high"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-emerald-100 text-emerald-900"
+                                }`}
+                              >
+                                {msg.soilData.phosphorus.status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-black text-[#2D5A27] block">
+                              {msg.soilData.phosphorus.value} kg/ha
+                            </span>
+                            <p className="text-[10px] text-[#4A4947] leading-tight">
+                              📌 {msg.soilData.phosphorus.advice}
+                            </p>
+                          </div>
+
+                          {/* Potassium */}
+                          <div className="bg-white border border-[#E5E3DC] rounded-xl p-2.5 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-[#2A2928]">🍃 {lang === "te" ? "పొటాష్ (K)" : "Potassium (K)"}</span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  msg.soilData.potassium.band_key === "low"
+                                    ? "bg-red-100 text-red-800"
+                                    : msg.soilData.potassium.band_key === "high"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-emerald-100 text-emerald-900"
+                                }`}
+                              >
+                                {msg.soilData.potassium.status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-black text-[#2D5A27] block">
+                              {msg.soilData.potassium.value} kg/ha
+                            </span>
+                            <p className="text-[10px] text-[#4A4947] leading-tight">
+                              📌 {msg.soilData.potassium.advice}
+                            </p>
+                          </div>
+
+                          {/* pH */}
+                          <div className="bg-white border border-[#E5E3DC] rounded-xl p-2.5 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-[#2A2928]">⚖️ {lang === "te" ? "నేల pH" : "Soil pH"}</span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  msg.soilData.ph.band_key === "acidic"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : msg.soilData.ph.band_key === "alkaline"
+                                    ? "bg-purple-100 text-purple-900"
+                                    : "bg-emerald-100 text-emerald-900"
+                                }`}
+                              >
+                                {msg.soilData.ph.status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-black text-[#2D5A27] block">
+                              pH {msg.soilData.ph.value}
+                            </span>
+                            <p className="text-[10px] text-[#4A4947] leading-tight">
+                              📌 {msg.soilData.ph.advice}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Explicit Disclaimer (Entered values, not photo scan) */}
+                        <div className="bg-[#F3F2EE] border border-[#E5E3DC] rounded-xl p-2 text-[10px] text-[#4A4947] flex items-start space-x-1.5">
+                          <span>📋</span>
+                          <span>{msg.soilData.disclaimer}</span>
+                        </div>
+                      </div>
                     ) : (
                       /* General Text Reply */
                       <p className="text-xs text-[#2A2928] leading-relaxed font-normal">
@@ -1555,18 +1813,30 @@ export default function Home() {
                   const name = cropNames[crop.crop_type.toLowerCase()] || { en: crop.crop_type, te: crop.crop_type };
 
                   return (
-                    <div
-                      key={crop.id}
-                      className="px-3 py-2 bg-[#EAF3E8] border border-[#2D5A27]/20 rounded-2xl flex items-center space-x-1.5 shrink-0"
-                    >
-                      <span className="text-base">{icon}</span>
-                      <span className="text-xs font-bold text-[#2D5A27]">{lang === "te" ? name.te : name.en}</span>
+                    <div key={crop.id} className="flex items-center space-x-1.5 shrink-0">
+                      <div className="px-3 py-2 bg-[#EAF3E8] border border-[#2D5A27]/20 rounded-2xl flex items-center space-x-1.5 shrink-0 shadow-2xs">
+                        <span className="text-base">{icon}</span>
+                        <span className="text-xs font-bold text-[#2D5A27]">{lang === "te" ? name.te : name.en}</span>
+                        <button
+                          onClick={() => handleDeleteCrop(crop.id)}
+                          className="text-[10px] text-[#4A4947] hover:text-red-600 pl-1 font-bold"
+                          title="Delete"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Soil Health Button beside selected crop */}
                       <button
-                        onClick={() => handleDeleteCrop(crop.id)}
-                        className="text-[10px] text-[#4A4947] hover:text-red-600 pl-1 font-bold"
-                        title="Delete"
+                        onClick={() => {
+                          setSoilTargetCrop(crop.crop_type);
+                          setSoilHealthModalOpen(true);
+                        }}
+                        className="px-2.5 py-2 bg-[#fef3c7] hover:bg-[#fde68a] text-[#92400e] border border-[#f59e0b]/30 rounded-2xl text-xs font-bold flex items-center space-x-1 shrink-0 shadow-2xs active:scale-95 transition-all"
+                        title={lang === "te" ? "నేల ఆరోగ్య కార్డు వివరాలు" : "Soil Health Card"}
                       >
-                        ✕
+                        <span>🧪</span>
+                        <span>{lang === "te" ? "నేల ఆరోగ్యం" : "Soil Health"}</span>
                       </button>
                     </div>
                   );
@@ -1890,6 +2160,152 @@ export default function Home() {
                 className="w-full bg-emerald-800 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition-all active:scale-95"
               >
                 {lang === "te" ? "సలహా పొందండి" : "Calculate Runtime"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+      {/* SOIL HEALTH CARD MODAL (Values entered by farmer from Soil Card) */}
+      {/* ========================================================================= */}
+      {soilHealthModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[60] animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3.5 shadow-xl border border-[#D97706]/30">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-zinc-100 pb-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">🧪</span>
+                <div>
+                  <span className="text-sm font-extrabold text-[#2A2928] block">
+                    {lang === "te" ? "నేల ఆరోగ్య కార్డు (Soil Health Card)" : "Soil Health Analysis"}
+                  </span>
+                  <span className="text-[10px] text-[#4A4947] block font-medium">
+                    {lang === "te" ? "మీ సాయిల్ కార్డు విలువలను నమోదు చేయండి" : "Enter values from your Soil Health Card"}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSoilHealthModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-[#F3F2EE] hover:bg-[#E5E3DC] text-[#4A4947] font-bold text-xs flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Explicit Notice (Not a photo scan) */}
+            <div className="bg-[#fef3c7] border border-[#f59e0b]/40 rounded-2xl p-2.5 text-[11px] text-[#92400e] flex items-start space-x-1.5">
+              <span>📋</span>
+              <p className="leading-snug">
+                <b>{lang === "te" ? "గమనిక:" : "Note:"}</b>{" "}
+                {lang === "te"
+                  ? "ఈ విశ్లేషణ మీరు నమోదు చేసే నేల పరీక్ష సేకరణ విలువలపై ఆధారపడి ఉంటుంది (ఫోటో స్కాన్ కాదు)."
+                  : "This analysis is based on values you enter from your official Soil Card (not a photo scan)."}
+              </p>
+            </div>
+
+            {/* Form Inputs */}
+            <div className="space-y-2.5">
+              {/* Crop Target */}
+              <div>
+                <label className="text-[11px] font-bold text-[#4A4947] block mb-1">
+                  🌾 {lang === "te" ? "పంటను ఎంచుకోండి (Crop Target):" : "Target Crop:"}
+                </label>
+                <select
+                  value={soilTargetCrop}
+                  onChange={(e) => setSoilTargetCrop(e.target.value)}
+                  className="w-full bg-[#F3F2EE] border border-[#E5E3DC] rounded-xl p-2 text-xs font-bold text-[#2A2928]"
+                >
+                  <option value="tomato">Tomato (టమాటా)</option>
+                  <option value="rice">Rice (వరి)</option>
+                  <option value="chilli">Chilli (మిరప)</option>
+                  <option value="cotton">Cotton (పత్తి)</option>
+                  <option value="groundnut">Groundnut (వేరుశనగ)</option>
+                  <option value="maize">Maize (మొక్కజొన్న)</option>
+                  <option value="sugarcane">Sugarcane (చెరకు)</option>
+                  <option value="wheat">Wheat (గోధుమ)</option>
+                </select>
+              </div>
+
+              {/* 2x2 Numeric Inputs: N, P, K, pH */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Nitrogen */}
+                <div className="bg-[#F3F2EE] p-2 rounded-xl border border-[#E5E3DC]">
+                  <label className="text-[10px] font-bold text-[#4A4947] block">
+                    🌱 {lang === "te" ? "నత్రజని (N) kg/ha" : "Nitrogen (N) kg/ha"}
+                  </label>
+                  <input
+                    type="number"
+                    value={soilN}
+                    onChange={(e) => setSoilN(e.target.value)}
+                    placeholder="e.g. 240"
+                    className="w-full bg-white border border-[#E5E3DC] rounded-lg p-1.5 text-xs font-extrabold text-[#2A2928] mt-1"
+                  />
+                  <span className="text-[9px] text-[#4A4947]/70 block mt-0.5">ICAR: 280-560 Medium</span>
+                </div>
+
+                {/* Phosphorus */}
+                <div className="bg-[#F3F2EE] p-2 rounded-xl border border-[#E5E3DC]">
+                  <label className="text-[10px] font-bold text-[#4A4947] block">
+                    🌾 {lang === "te" ? "భాస్వరం (P) kg/ha" : "Phosphorus (P) kg/ha"}
+                  </label>
+                  <input
+                    type="number"
+                    value={soilP}
+                    onChange={(e) => setSoilP(e.target.value)}
+                    placeholder="e.g. 15"
+                    className="w-full bg-white border border-[#E5E3DC] rounded-lg p-1.5 text-xs font-extrabold text-[#2A2928] mt-1"
+                  />
+                  <span className="text-[9px] text-[#4A4947]/70 block mt-0.5">ICAR: 10-25 Medium</span>
+                </div>
+
+                {/* Potassium */}
+                <div className="bg-[#F3F2EE] p-2 rounded-xl border border-[#E5E3DC]">
+                  <label className="text-[10px] font-bold text-[#4A4947] block">
+                    🍃 {lang === "te" ? "పొటాష్ (K) kg/ha" : "Potassium (K) kg/ha"}
+                  </label>
+                  <input
+                    type="number"
+                    value={soilK}
+                    onChange={(e) => setSoilK(e.target.value)}
+                    placeholder="e.g. 210"
+                    className="w-full bg-white border border-[#E5E3DC] rounded-lg p-1.5 text-xs font-extrabold text-[#2A2928] mt-1"
+                  />
+                  <span className="text-[9px] text-[#4A4947]/70 block mt-0.5">ICAR: 110-280 Medium</span>
+                </div>
+
+                {/* pH */}
+                <div className="bg-[#F3F2EE] p-2 rounded-xl border border-[#E5E3DC]">
+                  <label className="text-[10px] font-bold text-[#4A4947] block">
+                    ⚖️ {lang === "te" ? "నేల pH (Soil pH)" : "Soil pH (1-14)"}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={soilPh}
+                    onChange={(e) => setSoilPh(e.target.value)}
+                    placeholder="e.g. 6.8"
+                    className="w-full bg-white border border-[#E5E3DC] rounded-lg p-1.5 text-xs font-extrabold text-[#2A2928] mt-1"
+                  />
+                  <span className="text-[9px] text-[#4A4947]/70 block mt-0.5">Ideal: 6.5 - 7.5</span>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                disabled={soilSubmitting}
+                onClick={() => {
+                  setSoilHealthModalOpen(false);
+                  setDrawerOpen(false);
+                  handleSoilSubmit();
+                }}
+                className="w-full bg-[#2D5A27] hover:bg-[#23481f] text-white font-bold py-2.5 rounded-2xl text-xs shadow-md transition-all active:scale-95 flex items-center justify-center space-x-1.5 mt-2"
+              >
+                <span>🧪</span>
+                <span>
+                  {soilSubmitting
+                    ? (lang === "te" ? "విశ్లేషిస్తున్నాము..." : "Analyzing...")
+                    : (lang === "te" ? "నేల ఆరోగ్యం విశ్లేషించండి" : "Analyze Soil Health")}
+                </span>
               </button>
             </div>
           </div>

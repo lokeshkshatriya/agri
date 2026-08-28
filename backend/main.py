@@ -10,7 +10,9 @@ from agronomy_reasoning import AgronomyReasoningEngine
 from weather_service import WeatherAdvisoryService
 from irrigation import get_irrigation_recommendation, CROP_WATER_NEEDS
 from crop_stages import get_crop_stage_precautions, CROP_STAGE_RISKS
+from soil_health import analyze_soil_health
 from fastapi import UploadFile, File, Form, Query
+from typing import Optional
 
 app = FastAPI(title="AgriSahayak AI Voice Backend", version="1.0.0")
 
@@ -25,10 +27,11 @@ app.add_middleware(
 
 class FileUpdateRequest(BaseModel):
     content: str
+    target_file: str = r"c:\Users\Lokesh Kumar\Desktop\AgriHelp\frontend\src\app\page.tsx"
 
 @app.post("/api/dev/update-page")
 def update_page_tsx(req: FileUpdateRequest):
-    target = r"c:\Users\Lokesh Kumar\Desktop\AgriHelp\frontend\src\app\page.tsx"
+    target = req.target_file
     with open(target, "w", encoding="utf-8") as f:
         f.write(req.content)
     return {"status": "ok", "bytes": len(req.content)}
@@ -50,6 +53,14 @@ class CropPrecautionRequest(BaseModel):
     crop_type: str = "tomato"
     stage: str = "Flowering"
     lang: str = "te"
+
+class SoilAnalysisRequest(BaseModel):
+    n: float
+    p: float
+    k: float
+    ph: float
+    crop_type: Optional[str] = None
+    lang: str = "en"
 
 class TTSRequest(BaseModel):
     text: str
@@ -209,6 +220,38 @@ async def diagnose_crop_image(
             
         diag["audio_b64"] = audio_b64
         return diag
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/soil/analyze")
+def analyze_soil(req: SoilAnalysisRequest):
+    """
+    Analyzes entered Soil Health Card values (N, P, K, pH) against ICAR standards and crop requirements.
+    Does NOT use vision/camera. Generates plain-language advice and localized TTS audio.
+    """
+    try:
+        res = analyze_soil_health(
+            n=req.n,
+            p=req.p,
+            k=req.k,
+            ph=req.ph,
+            crop_type=req.crop_type,
+            lang=req.lang
+        )
+
+        audio_b64 = ""
+        try:
+            tts_lang = "te" if req.lang == "te" else "en"
+            tts = gTTS(text=res["voice_text"], lang=tts_lang, slow=False)
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            audio_b64 = f"data:audio/mp3;base64,{base64.b64encode(fp.read()).decode('utf-8')}"
+        except Exception as tts_err:
+            print(f"Soil Health TTS error: {tts_err}")
+
+        res["audio_b64"] = audio_b64
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
