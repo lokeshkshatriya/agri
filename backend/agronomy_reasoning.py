@@ -132,6 +132,27 @@ class AgronomyReasoningEngine:
         confidence = float(diagnosis_data.get("confidence_score", 90.0))
         affected_area = float(diagnosis_data.get("affected_area_pct", 0.0))
         is_healthy = "healthy" in disease_id.lower() or "Healthy" in diagnosis_data.get("disease_name", "")
+        is_non_plant = diagnosis_data.get("is_non_plant", False) or disease_id == "Not_A_Plant"
+
+        # If image is not a plant leaf, return dedicated advisory without false pest treatment
+        if is_non_plant:
+            return {
+                "urgency_level": "INVALID",
+                "urgency_color": "zinc",
+                "urgency_label": "చెల్లని చిత్రం (Invalid Image)" if lang == "te" else "Invalid Image / Not a Plant",
+                "is_escalated": False,
+                "is_non_plant": True,
+                "escalation_reason": None,
+                "kisan_helpline": "1800-180-1551",
+                "tier_1_organic": None,
+                "tier_2_moderate": None,
+                "tier_3_systemic": None,
+                "voice_reasoning": (
+                    "ఫోటోలో పంట ఆకు కనిపించడం లేదు. దయచేసి పంట ఆకును స్పష్టంగా కెమెరాలో చూపించి మళ్లీ స్కాన్ చేయండి."
+                    if lang == "te"
+                    else "The photo does not contain a crop leaf. Please scan a clear picture of the plant leaf."
+                )
+            }
 
         # 1. Escalation Flag (<75% confidence or ambiguous scan)
         is_escalated = (confidence < 75.0) and not is_healthy

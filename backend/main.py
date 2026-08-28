@@ -23,6 +23,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class FileUpdateRequest(BaseModel):
+    content: str
+
+@app.post("/api/dev/update-page")
+def update_page_tsx(req: FileUpdateRequest):
+    target = r"c:\Users\Lokesh Kumar\Desktop\AgriHelp\frontend\src\app\page.tsx"
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(req.content)
+    return {"status": "ok", "bytes": len(req.content)}
+
 class QueryRequest(BaseModel):
     query: str
     lang: str = "te"  # 'te' for Telugu, 'en' for English

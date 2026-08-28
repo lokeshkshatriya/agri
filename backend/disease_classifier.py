@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
@@ -41,45 +42,96 @@ class HybridDiseaseClassifier:
         pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         tensor = cls.TRANSFORM(pil_img).unsqueeze(0)
 
-        # Mapping of user crop types to keywords in the 38 HuggingFace model labels
+        # Accurate keyword mapping for PlantVillage dataset classes
+        # Model classes: Apple, Blueberry, Cherry, Corn (Maize), Grape, Orange, Peach, Bell Pepper, Potato, Raspberry, Soybean, Squash, Strawberry, Tomato
         crop_alias_map = {
             "tomato": ["tomato"],
-            "chilli": ["pepper", "chilli", "bell pepper"],
-            "cotton": ["cotton", "soybean"],
-            "groundnut": ["groundnut", "peanut", "soybean"],
+            "chilli": ["pepper", "bell pepper"],
+            "cotton": ["cotton"],
+            "groundnut": ["groundnut", "peanut"],
             "maize": ["corn", "maize"],
-            "sugarcane": ["sugarcane", "corn"],
-            "wheat": ["wheat", "corn"],
-            "rice": ["rice", "corn"],
+            "sugarcane": ["sugarcane"],
+            "wheat": ["wheat"],
+            "rice": ["rice"],
+            "potato": ["potato"],
+            "soybean": ["soybean"],
         }
 
         with torch.no_grad():
-            logits = cls.MODEL(tensor).logits
-            probs = torch.softmax(logits, dim=1)[0]
+            raw_logits = cls.MODEL(tensor).logits
+            raw_probs = torch.softmax(raw_logits, dim=1)[0]
+            
+            # Top-1 and Top-2 prediction confidence and margin analysis
+            sorted_probs, sorted_indices = torch.sort(raw_probs, descending=True)
+            top1_conf = float(sorted_probs[0].item() * 100.0)
+            top2_conf = float(sorted_probs[1].item() * 100.0) if len(sorted_probs) > 1 else 0.0
+            top_margin = top1_conf - top2_conf  # Difference between top 2 classes
+            
+            raw_top_idx = sorted_indices[0].item()
+            raw_predicted_label = cls.MODEL.config.id2label[raw_top_idx]
 
-            # If user has saved crops, filter the classifier candidates
-            allowed_indices = []
+            # Check if user has a selected crop filter
+            matched_indices = []
             if crop_filter and len(crop_filter) > 0:
-                allowed_keywords = []
+                target_keywords = []
                 for c in crop_filter:
                     c_clean = c.lower().strip()
-                    allowed_keywords.extend(crop_alias_map.get(c_clean, [c_clean]))
+                    target_keywords.extend(crop_alias_map.get(c_clean, [c_clean]))
 
                 for idx, label_name in cls.MODEL.config.id2label.items():
                     ln_clean = label_name.lower()
-                    if any(kw in ln_clean for kw in allowed_keywords):
-                        allowed_indices.append(idx)
+                    if any(kw in ln_clean for kw in target_keywords):
+                        matched_indices.append(idx)
 
-            if allowed_indices:
-                filtered_probs = probs[allowed_indices]
+            if matched_indices and raw_top_idx in matched_indices:
+                pred_idx = raw_top_idx
+                confidence = top1_conf
+                predicted_label = raw_predicted_label
+            elif matched_indices:
+                filtered_probs = raw_probs[matched_indices]
                 best_sub_idx = torch.argmax(filtered_probs).item()
-                pred_idx = allowed_indices[best_sub_idx]
-                confidence = probs[pred_idx].item() * 100.0
+                pred_idx = matched_indices[best_sub_idx]
+                confidence = raw_probs[pred_idx].item() * 100.0
                 predicted_label = cls.MODEL.config.id2label[pred_idx]
             else:
-                pred_idx = torch.argmax(probs).item()
-                confidence = probs[pred_idx].item() * 100.0
-                predicted_label = cls.MODEL.config.id2label[pred_idx]
+                pred_idx = raw_top_idx
+                confidence = top1_conf
+                predicted_label = raw_predicted_label
+
+        # -------------------------------------------------------------------------
+        # DISTRIBUTION FLATNESS / OFF-DISTRIBUTION GATE
+        # Genuinely off-distribution non-plant images (faces, rooms, screens, objects)
+        # produce flatter distributions where:
+        # 1. Top confidence is low (< 50%) OR
+        # 2. Top-2 predictions are ambiguous / very close together (margin < 15% when top1 < 70%) OR
+        # 3. Overall confidence is below 55%
+        # -------------------------------------------------------------------------
+        is_flat_distribution = (top1_conf < 50.0) or (top1_conf < 70.0 and top_margin < 15.0) or (confidence < 55.0)
+
+        if is_flat_distribution:
+            return {
+                "disease_id": "Not_A_Plant",
+                "crop_name": "గుర్తించబడలేదు" if lang == "te" else "Unidentified",
+                "disease_name": "ఆకు చిత్రం కాదు / స్పష్టత లేదు" if lang == "te" else "Not a Recognizable Crop Image",
+                "pathogen": f"Flatter probability distribution (Top-1: {top1_conf:.1f}%, Margin: {top_margin:.1f}%) indicates off-distribution image",
+                "confidence_score": round(confidence, 1),
+                "affected_area_pct": 0.0,
+                "chlorophyll_vigor_pct": 0.0,
+                "severity": "చెల్లదు (Invalid)" if lang == "te" else "Invalid Image",
+                "symptoms": (
+                    "ఫోటోలో పంట ఆకు స్పష్టంగా గుర్తించబడలేదు. దయచేసి కెమెరాను నేరుగా పంట ఆకుపై ఉంచి, తగినంత వెలుతురులో మళ్లీ స్కాన్ చేయండి."
+                    if lang == "te"
+                    else "The photo is not recognized as a crop plant. Please point your camera directly at the affected crop leaf and scan again."
+                ),
+                "organic_cure": "వర్తించదు (Not applicable)" if lang == "te" else "Not applicable",
+                "chemical_cure": "వర్తించదు (Not applicable)" if lang == "te" else "Not applicable",
+                "voice_speech": (
+                    "పంట ఆకు స్పష్టంగా లేదు. దయచేసి ఆకును కెమెరాలో స్పష్టంగా చూపించి మళ్లీ స్కాన్ చేయండి."
+                    if lang == "te"
+                    else "Not a recognizable crop image. Please scan a clear plant leaf."
+                ),
+                "is_non_plant": True
+            }
 
         # Map to disease info database
         db = cls.PLANTVILLAGE_DB
