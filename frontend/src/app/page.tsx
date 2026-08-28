@@ -10,6 +10,17 @@ interface ChatMessage {
   confidence?: number;
   actionName?: string;
   audioB64?: string;
+  weatherData?: {
+    temperature: number;
+    humidity: number;
+    wind_speed: number;
+    wind_gusts: number;
+    rain_prob_6h: number;
+    spray_status: string;
+    spray_badge: string;
+    spray_advice: string;
+    safe_window: string;
+  };
   diagnosisData?: {
     cropName: string;
     diseaseName: string;
@@ -20,6 +31,31 @@ interface ChatMessage {
     severity: string;
     organicCure: string;
     chemicalCure: string;
+    reasoning?: {
+      urgency_level: string;
+      urgency_color: string;
+      urgency_label: string;
+      is_escalated: boolean;
+      escalation_reason?: string;
+      kisan_helpline: string;
+      tier_1_organic: {
+        name: string;
+        dosage: string;
+        cost_inr: string;
+        result_days: string;
+        patience_note: string;
+      };
+      tier_2_moderate: {
+        name: string;
+        dosage: string;
+        cost_inr: string;
+      };
+      tier_3_systemic: {
+        name: string;
+        dosage: string;
+        cost_inr: string;
+      };
+    };
   };
   timestamp: string;
 }
@@ -27,6 +63,7 @@ interface ChatMessage {
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [lang, setLang] = useState<"te" | "en">("te");
+  const [coords, setCoords] = useState<{ lat: number; lon: number }>({ lat: 17.3850, lon: 78.4867 });
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -40,6 +77,20 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCoords({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+          });
+        },
+        (err) => {
+          console.log("Using regional fallback coordinates:", err.message);
+        },
+        { timeout: 8000 }
+      );
+    }
   }, []);
 
   // Initialize Web Speech API
@@ -170,11 +221,16 @@ export default function Home() {
 
     try {
       const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const res = await fetch(`http://${host}:8000/api/voice/intent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: cleanText, lang }),
+        body: JSON.stringify({ query: cleanText, lang, lat: coords.lat, lon: coords.lon }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await res.json();
 
@@ -190,6 +246,7 @@ export default function Home() {
         confidence: data.confidence_pct,
         actionName: data.action_name,
         audioB64: data.audio_b64,
+        weatherData: data.weather_data,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
@@ -236,10 +293,15 @@ export default function Home() {
 
     try {
       const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
       const res = await fetch(`http://${host}:8000/api/crop/diagnose`, {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       const botMsg: ChatMessage = {
@@ -260,6 +322,7 @@ export default function Home() {
           severity: data.severity,
           organicCure: data.organic_cure,
           chemicalCure: data.chemical_cure,
+          reasoning: data.reasoning,
         },
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
@@ -507,7 +570,49 @@ export default function Home() {
                 )}
                 {msg.diagnosisData ? (
                   <div className="mt-2 space-y-3">
-                    {/* Severity & Metrics Grid */}
+                    {/* Urgency Badge & Escalation Alert */}
+                    {msg.diagnosisData.reasoning && (
+                      <div>
+                        {/* Low-Confidence Escalation Warning */}
+                        {msg.diagnosisData.reasoning.is_escalated && (
+                          <div className="bg-red-50 border-2 border-red-500 rounded-xl p-3 mb-2 text-red-900 flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-xs flex items-center space-x-1">
+                                <span>⚠️</span>
+                                <span>{lang === "te" ? "స్పష్టత లేని స్కాన్ (Escalated)" : "Inconclusive Scan — Escalated"}</span>
+                              </span>
+                              <p className="text-[11px] mt-0.5 text-red-800">
+                                {msg.diagnosisData.reasoning.escalation_reason}
+                              </p>
+                            </div>
+                            <a
+                              href="tel:18001801551"
+                              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-full whitespace-nowrap shadow-sm"
+                            >
+                              📞 {lang === "te" ? "కాల్ చేయండి" : "Call KCC"}
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Urgency Level Ribbon */}
+                        <div
+                          className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                            msg.diagnosisData.reasoning.urgency_level === "CRITICAL"
+                              ? "bg-red-50 border-red-300 text-red-800"
+                              : msg.diagnosisData.reasoning.urgency_level === "MODERATE"
+                              ? "bg-amber-50 border-amber-300 text-amber-900"
+                              : "bg-emerald-50 border-emerald-300 text-emerald-900"
+                          }`}
+                        >
+                          <span>🚨 {msg.diagnosisData.reasoning.urgency_label}</span>
+                          <span className="text-[10px] bg-white px-2 py-0.5 rounded-full shadow-xs">
+                            {msg.diagnosisData.reasoning.urgency_level}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Severity & Physical Metrics */}
                     <div className="grid grid-cols-3 gap-2 bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-100 text-center">
                       <div>
                         <span className="text-[10px] text-zinc-500 block">
@@ -535,25 +640,150 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Organic Remedy Box */}
-                    <div className="bg-green-50/90 border-l-4 border-green-600 p-2.5 rounded-r-xl">
-                      <span className="text-xs font-bold text-green-900 flex items-center space-x-1">
-                        <span>🌿</span>
-                        <span>{lang === "te" ? "సేంద్రీయ నివారణ (Organic Remedy):" : "Organic Bio Remedy:"}</span>
+                    {/* COST-TIERED TREATMENT MATRIX */}
+                    {msg.diagnosisData.reasoning ? (
+                      <div className="space-y-2">
+                        {/* Tier 1: Organic / Bio Control */}
+                        <div className="bg-emerald-50/90 border border-emerald-300 rounded-xl p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-950 flex items-center space-x-1">
+                              <span>🌿</span>
+                              <span>{lang === "te" ? "టైర్ 1: సేంద్రీయ నివారణ (అతి తక్కువ ఖర్చు)" : "Tier 1: Bio / Organic (Lowest Cost)"}</span>
+                            </span>
+                            <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-full">
+                              💰 {msg.diagnosisData.reasoning.tier_1_organic.cost_inr}
+                            </span>
+                          </div>
+                          <p className="text-xs text-emerald-900 font-semibold mt-1">
+                            {msg.diagnosisData.reasoning.tier_1_organic.name}
+                          </p>
+                          <p className="text-[11px] text-zinc-600 mt-0.5">
+                            📌 <b>{lang === "te" ? "మోతాదు" : "Dosage"}:</b> {msg.diagnosisData.reasoning.tier_1_organic.dosage}
+                          </p>
+                          
+                          {/* Biological Patience Window Counter */}
+                          <div className="mt-2 bg-emerald-100/70 border-l-3 border-emerald-600 p-2 rounded-r-lg">
+                            <span className="text-[11px] font-bold text-emerald-900 flex items-center space-x-1">
+                              <span>⏳</span>
+                              <span>
+                                {lang === "te"
+                                  ? `ఆశించిన సమయం: ${msg.diagnosisData.reasoning.tier_1_organic.result_days}`
+                                  : `Expected Timeline: ${msg.diagnosisData.reasoning.tier_1_organic.result_days}`}
+                              </span>
+                            </span>
+                            <p className="text-[10px] text-emerald-950 mt-0.5 leading-tight">
+                              🛡️ {msg.diagnosisData.reasoning.tier_1_organic.patience_note}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Tier 2: Moderate Contact Chemical */}
+                        <div className="bg-amber-50/80 border border-amber-300 rounded-xl p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-950 flex items-center space-x-1">
+                              <span>🧪</span>
+                              <span>{lang === "te" ? "టైర్ 2: సంప్రదాయ రసాయన మందు" : "Tier 2: Contact Protectant (Standard)"}</span>
+                            </span>
+                            <span className="text-[11px] font-extrabold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                              💰 {msg.diagnosisData.reasoning.tier_2_moderate.cost_inr}
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-950 font-semibold mt-1">
+                            {msg.diagnosisData.reasoning.tier_2_moderate.name}
+                          </p>
+                          <p className="text-[11px] text-zinc-600 mt-0.5">
+                            📌 <b>{lang === "te" ? "మోతాదు" : "Dosage"}:</b> {msg.diagnosisData.reasoning.tier_2_moderate.dosage}
+                          </p>
+                        </div>
+
+                        {/* Tier 3: Emergency Systemic Curative */}
+                        <div className="bg-zinc-50 border border-zinc-300 rounded-xl p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-zinc-800 flex items-center space-x-1">
+                              <span>🔬</span>
+                              <span>{lang === "te" ? "టైర్ 3: అత్యవసర సిస్టమిక్ మందు (అధిక ఖర్చు)" : "Tier 3: Systemic Curative (High Tier)"}</span>
+                            </span>
+                            <span className="text-[11px] font-extrabold text-zinc-800 bg-zinc-200 px-2 py-0.5 rounded-full">
+                              💰 {msg.diagnosisData.reasoning.tier_3_systemic.cost_inr}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-900 font-semibold mt-1">
+                            {msg.diagnosisData.reasoning.tier_3_systemic.name}
+                          </p>
+                          <p className="text-[11px] text-zinc-600 mt-0.5">
+                            📌 <b>{lang === "te" ? "మోతాదు" : "Dosage"}:</b> {msg.diagnosisData.reasoning.tier_3_systemic.dosage}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* Fallback organic / chemical */}
+                        <div className="bg-green-50/90 border-l-4 border-green-600 p-2.5 rounded-r-xl">
+                          <span className="text-xs font-bold text-green-900 flex items-center space-x-1">
+                            <span>🌿</span>
+                            <span>{lang === "te" ? "సేంద్రీయ నివారణ:" : "Organic Remedy:"}</span>
+                          </span>
+                          <p className="text-xs text-green-950 mt-1">{msg.diagnosisData.organicCure}</p>
+                        </div>
+                        <div className="bg-amber-50/90 border-l-4 border-amber-600 p-2.5 rounded-r-xl">
+                          <span className="text-xs font-bold text-amber-900 flex items-center space-x-1">
+                            <span>🧪</span>
+                            <span>{lang === "te" ? "రసాయన మందు & మోతాదు:" : "Chemical Dosage:"}</span>
+                          </span>
+                          <p className="text-xs text-amber-950 mt-1">{msg.diagnosisData.chemicalCure}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : msg.weatherData ? (
+                  <div className="mt-2 space-y-3">
+                    {/* Live Spray Safety Badge */}
+                    <div
+                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-xs ${
+                        msg.weatherData.spray_status === "UNSAFE"
+                          ? "bg-red-50 border-red-300 text-red-900"
+                          : msg.weatherData.spray_status === "CAUTION"
+                          ? "bg-amber-50 border-amber-300 text-amber-900"
+                          : "bg-emerald-50 border-emerald-300 text-emerald-900"
+                      }`}
+                    >
+                      <span className="text-sm">🌦️ {msg.weatherData.spray_badge}</span>
+                      <span className="text-[10px] bg-white px-2.5 py-1 rounded-full shadow-xs uppercase">
+                        {msg.weatherData.spray_status}
                       </span>
-                      <p className="text-xs text-green-950 mt-1 leading-relaxed">
-                        {msg.diagnosisData.organicCure}
-                      </p>
                     </div>
 
-                    {/* Chemical Remedy Box */}
-                    <div className="bg-amber-50/90 border-l-4 border-amber-600 p-2.5 rounded-r-xl">
-                      <span className="text-xs font-bold text-amber-900 flex items-center space-x-1">
-                        <span>🧪</span>
-                        <span>{lang === "te" ? "రసాయన మందు & మోతాదు (Chemical Dosage):" : "Chemical Treatment & Dosage:"}</span>
+                    {/* Live Weather Metrics Grid */}
+                    <div className="grid grid-cols-4 gap-1.5 bg-blue-50/70 p-2.5 rounded-2xl border border-blue-200 text-center">
+                      <div className="bg-white/80 p-1.5 rounded-xl">
+                        <span className="text-[10px] text-zinc-500 block">🌡️ {lang === "te" ? "ఉష్ణోగ్రత" : "Temp"}</span>
+                        <span className="text-xs font-extrabold text-blue-950">{msg.weatherData.temperature}°C</span>
+                      </div>
+                      <div className="bg-white/80 p-1.5 rounded-xl">
+                        <span className="text-[10px] text-zinc-500 block">💧 {lang === "te" ? "తేమ" : "Humidity"}</span>
+                        <span className="text-xs font-extrabold text-blue-950">{msg.weatherData.humidity}%</span>
+                      </div>
+                      <div className="bg-white/80 p-1.5 rounded-xl">
+                        <span className="text-[10px] text-zinc-500 block">💨 {lang === "te" ? "గాలి" : "Wind"}</span>
+                        <span className="text-xs font-extrabold text-blue-950">{msg.weatherData.wind_speed} <span className="text-[9px]">km/h</span></span>
+                      </div>
+                      <div className="bg-white/80 p-1.5 rounded-xl">
+                        <span className="text-[10px] text-zinc-500 block">🌧️ {lang === "te" ? "వర్షం" : "Rain"}</span>
+                        <span className="text-xs font-extrabold text-blue-950">{msg.weatherData.rain_prob_6h}%</span>
+                      </div>
+                    </div>
+
+                    {/* Safe Spray Window Box */}
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-l-4 border-emerald-600 p-3 rounded-r-2xl shadow-xs">
+                      <span className="text-xs font-bold text-emerald-950 flex items-center space-x-1">
+                        <span>⏰</span>
+                        <span>{lang === "te" ? "పిచికారీకి అనుకూల సమయం (Best Window):" : "Recommended Spray Window:"}</span>
                       </span>
-                      <p className="text-xs text-amber-950 mt-1 leading-relaxed">
-                        {msg.diagnosisData.chemicalCure}
+                      <p className="text-xs text-emerald-900 font-semibold mt-1">
+                        {msg.weatherData.safe_window}
+                      </p>
+                      <p className="text-[11px] text-zinc-600 mt-1">
+                        📢 {msg.weatherData.spray_advice}
                       </p>
                     </div>
                   </div>
@@ -607,7 +837,7 @@ export default function Home() {
             }
             className="flex-grow bg-emerald-50/70 border border-emerald-300 focus:border-emerald-600 rounded-full px-4 py-2.5 text-sm outline-none text-zinc-800"
           />
-          {/* Hidden File Input */}
+          {/* Hidden File Input for Gallery */}
           <input
             type="file"
             ref={fileInputRef}
@@ -620,11 +850,32 @@ export default function Home() {
             }}
           />
 
+          {/* Hidden Camera Input for Mobile Direct Capture */}
+          <input
+            type="file"
+            id="mobileCameraInput"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                handleImageDiagnosis(e.target.files[0]);
+              }
+            }}
+          />
+
           <button
             type="button"
-            onClick={() => setCameraActive(true)}
+            onClick={() => {
+              // Try HTML5 media stream first, fallback to native mobile camera input
+              if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                setCameraActive((prev) => !prev);
+              } else {
+                document.getElementById("mobileCameraInput")?.click();
+              }
+            }}
             title="Open Camera"
-            className="p-2.5 rounded-full text-emerald-800 bg-emerald-100 hover:bg-emerald-200 transition-colors"
+            className="p-3 rounded-full text-emerald-800 bg-emerald-100 hover:bg-emerald-200 active:scale-95 transition-all text-base"
           >
             📷
           </button>
@@ -632,14 +883,14 @@ export default function Home() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             title="Upload Leaf Photo"
-            className="p-2.5 rounded-full text-emerald-800 bg-emerald-100 hover:bg-emerald-200 transition-colors"
+            className="p-3 rounded-full text-emerald-800 bg-emerald-100 hover:bg-emerald-200 active:scale-95 transition-all text-base"
           >
             📁
           </button>
           <button
             type="button"
             onClick={toggleListening}
-            className={`p-2.5 rounded-full text-white ${
+            className={`p-3 rounded-full text-white active:scale-95 transition-all text-base ${
               isListening ? "bg-red-600 animate-pulse" : "bg-emerald-700 hover:bg-emerald-600"
             }`}
           >
@@ -647,7 +898,7 @@ export default function Home() {
           </button>
           <button
             type="submit"
-            className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-full text-sm shadow-md"
+            className="bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-white font-bold px-4 py-2.5 rounded-full text-sm shadow-md transition-all"
           >
             ➔
           </button>
