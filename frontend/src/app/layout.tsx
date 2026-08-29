@@ -9,7 +9,7 @@ const beVietnamPro = Be_Vietnam_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "AgriSahayak - AI Agricultural Copilot",
+  title: "UrvanAI - AI Agricultural Copilot",
   description: "AI Agricultural Assistant for Farmers",
 };
 
