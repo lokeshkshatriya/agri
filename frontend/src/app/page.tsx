@@ -927,6 +927,7 @@ export default function Home() {
   // 4. ONBOARDING: LANGUAGE & SINGLE CROP SELECTION PROMPT FIRST
   // -------------------------------------------------------------
   if (showOnboarding) {
+    const onboardingCropsList = [
       { id: "tomato", icon: "🍅", name_en: "Tomato", name_te: "టమాటా" },
       { id: "potato", icon: "🥔", name_en: "Potato", name_te: "బంగాళాదుంప" },
       { id: "chilli", icon: "🌶️", name_en: "Chilli / Capsicum", name_te: "మిరప / క్యాప్సికమ్" },
@@ -1313,7 +1314,7 @@ export default function Home() {
                           🎯 {msg.actionName}
                         </span>
                         {/* % Match only shown for scan queries when > 0 */}
-                        {msg.diagnosisData && msg.confidence > 0 && (
+                        {msg.diagnosisData && msg.confidence != null && msg.confidence > 0 && (
                           <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                             ✨ {msg.confidence}% Match
                           </span>
