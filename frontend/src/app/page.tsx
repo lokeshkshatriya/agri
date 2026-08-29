@@ -159,8 +159,10 @@ export default function Home() {
     spray_status: string;
     spray_badge: string;
     safe_window: string;
+    locationName?: string;
   } | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  const [locationName, setLocationName] = useState<string>("Locating...");
 
   // Check Onboarding & Load saved crop
   useEffect(() => {
@@ -247,6 +249,19 @@ export default function Home() {
       try {
         setWeatherLoading(true);
         const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+        
+        let locName = "Current Location";
+        try {
+          const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lon}`);
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            locName = geoData.address?.village || geoData.address?.town || geoData.address?.city || geoData.address?.county || "Current Location";
+          }
+        } catch(e) {
+          console.error("Geocoding failed", e);
+        }
+        setLocationName(locName);
+
         const res = await fetch(
           `${API_BASE}/api/weather/advisory?lat=${coords.lat}&lon=${coords.lon}&lang=${lang}`
         );
@@ -260,6 +275,7 @@ export default function Home() {
             spray_status: data.spray_status,
             spray_badge: data.spray_badge,
             safe_window: data.safe_window,
+            locationName: locName,
           });
         }
       } catch (e) {
@@ -1902,10 +1918,17 @@ export default function Home() {
             {/* 3. WEATHER CARD */}
             <div className="bg-white border border-[#E5E3DC] rounded-2xl p-3.5 shadow-2xs space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-[#2A2928] flex items-center space-x-1">
-                  <span>🌦️</span>
-                  <span>{lang === "te" ? "వాతావరణం & పిచికారీ సలహా" : "Weather & Spray Advisory"}</span>
-                </span>
+                <div>
+                  <span className="text-xs font-extrabold text-[#2A2928] flex items-center space-x-1">
+                    <span>🌦️</span>
+                    <span>{lang === "te" ? "వాతావరణం & పిచికారీ సలహా" : "Weather & Spray Advisory"}</span>
+                  </span>
+                  {liveWeather?.locationName && (
+                    <span className="text-[10px] text-[#4A4947]/70 font-medium ml-5 flex items-center mt-0.5">
+                      📍 {liveWeather.locationName}
+                    </span>
+                  )}
+                </div>
                 {liveWeather && (
                   <span
                     className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
