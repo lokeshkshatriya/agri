@@ -1144,47 +1144,53 @@ export default function Home() {
           </div>
         </div>
 
-      {/* NEW: Persistent Selected Crop Strip right under header */}
-      {savedCrops.length > 0 && (
-        <div className="mt-3 flex items-center space-x-2 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-extrabold text-[#4A4947] uppercase tracking-wider shrink-0">
-            {lang === "te" ? "మీ పంట:" : "Your Crop:"}
+      {/* Persistent Selected Crop Strip right under header */}
+      <div className="mt-2.5 pt-2 border-t border-[#E5E3DC]/60 flex items-center justify-between w-full">
+        <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <span className="text-[10px] font-black text-[#2D5A27] uppercase tracking-wider shrink-0 bg-[#EAF3E8] px-2 py-0.5 rounded-md">
+            🌱 {lang === "te" ? "పంట:" : "Crop:"}
           </span>
-          {savedCrops.map((crop) => {
-            const cropIcons: Record<string, string> = {
-              tomato: "🍅", rice: "🌾", chilli: "🌶️", cotton: "🌿",
-              groundnut: "🥜", maize: "🌽", sugarcane: "🎋", wheat: "🌾",
-            };
-            const cropNames: Record<string, { en: string; te: string }> = {
-              tomato: { en: "Tomato", te: "టమాటా" },
-              rice: { en: "Rice", te: "వరి" },
-              chilli: { en: "Chilli", te: "మిరప" },
-              cotton: { en: "Cotton", te: "పత్తి" },
-              groundnut: { en: "Groundnut", te: "వేరుశనగ" },
-              maize: { en: "Maize", te: "మొక్కజొన్న" },
-              sugarcane: { en: "Sugarcane", te: "చెరకు" },
-              wheat: { en: "Wheat", te: "గోధుమ" },
-            };
-            const icon = cropIcons[crop.crop_type.toLowerCase()] || "🌱";
-            const name = cropNames[crop.crop_type.toLowerCase()] || { en: crop.crop_type, te: crop.crop_type };
-            
-            return (
-              <div key={crop.id} className="px-2.5 py-1 bg-[#EAF3E8] border border-[#2D5A27]/20 rounded-xl flex items-center space-x-1 shrink-0">
-                <span className="text-sm">{icon}</span>
-                <span className="text-[11px] font-bold text-[#2D5A27]">{lang === "te" ? name.te : name.en}</span>
-              </div>
-            );
-          })}
-          
-          <button
-            onClick={() => setAddCropModalOpen(true)}
-            className="px-2.5 py-1 bg-white border border-[#E5E3DC] hover:bg-[#F3F2EE] text-[#4A4947] rounded-xl text-[10px] font-bold flex items-center space-x-1 shrink-0 shadow-xs"
-          >
-            <span>✏️</span>
-            <span>{lang === "te" ? "మార్చు" : "Edit"}</span>
-          </button>
+          {savedCrops.length > 0 ? (
+            savedCrops.map((crop) => {
+              const cropIcons: Record<string, string> = {
+                tomato: "🍅", rice: "🌾", chilli: "🌶️", cotton: "🌿",
+                groundnut: "🥜", maize: "🌽", sugarcane: "🎋", wheat: "🌾",
+              };
+              const cropNames: Record<string, { en: string; te: string }> = {
+                tomato: { en: "Tomato", te: "టమాటా" },
+                rice: { en: "Rice", te: "వరి" },
+                chilli: { en: "Chilli", te: "మిరప" },
+                cotton: { en: "Cotton", te: "పత్తి" },
+                groundnut: { en: "Groundnut", te: "వేరుశనగ" },
+                maize: { en: "Maize", te: "మొక్కజొన్న" },
+                sugarcane: { en: "Sugarcane", te: "చెరకు" },
+                wheat: { en: "Wheat", te: "గోధుమ" },
+              };
+              const icon = cropIcons[crop.crop_type.toLowerCase()] || "🌱";
+              const name = cropNames[crop.crop_type.toLowerCase()] || { en: crop.crop_type, te: crop.crop_type };
+              
+              return (
+                <div key={crop.id} className="px-2 py-0.5 bg-white border border-[#2D5A27]/30 rounded-lg flex items-center space-x-1 shrink-0 shadow-2xs">
+                  <span className="text-xs">{icon}</span>
+                  <span className="text-[11px] font-extrabold text-[#2D5A27]">{lang === "te" ? name.te : name.en}</span>
+                </div>
+              );
+            })
+          ) : (
+            <span className="text-[10px] font-semibold text-[#4A4947] italic">
+              {lang === "te" ? "పంట ఎంపిక కాలేదు" : "No crop selected"}
+            </span>
+          )}
         </div>
-      )}
+
+        <button
+          onClick={() => setAddCropModalOpen(true)}
+          className="ml-2 px-2.5 py-1 bg-[#2D5A27] hover:bg-[#23481f] text-white rounded-lg text-[10px] font-bold flex items-center space-x-1 shrink-0 shadow-2xs active:scale-95 transition-all"
+        >
+          <span>{savedCrops.length > 0 ? "✏️" : "➕"}</span>
+          <span>{savedCrops.length > 0 ? (lang === "te" ? "మార్చు" : "Change") : (lang === "te" ? "ఎంచుకోండి" : "Select Crop")}</span>
+        </button>
+      </div>
     </header>
 
       {/* ========================================================================= */}
