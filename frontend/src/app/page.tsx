@@ -441,6 +441,13 @@ export default function Home() {
 
       if (data.intent === "OPEN_CAMERA") {
         setCurrentScreen("camera");
+      } else if (data.intent === "SOIL_FERTILIZER") {
+        if (savedCrops && savedCrops.length > 0) {
+          setSoilTargetCrop(savedCrops[0].crop_type);
+        } else {
+          setSoilTargetCrop("tomato");
+        }
+        setTimeout(() => setSoilHealthModalOpen(true), 1500); // Wait for the bot to finish speaking before popping the modal
       }
 
       const botMsg: ChatMessage = {

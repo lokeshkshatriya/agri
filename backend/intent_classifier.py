@@ -89,8 +89,8 @@ class AgriIntentClassifier:
                 voice_text = "నేల ఆరిపోకుండా మీ పంపును ఒకటిన్నర గంటల పాటు నడపండి." if current_lang == "te" else "Recommended irrigation run time is one hour and thirty minutes."
 
             elif best_intent == "SOIL_FERTILIZER":
-                reply_text = "🌱 ఎరువుల మోతాదు: సమతుల్య పెరుగుదల కోసం ఎకరాకు 2 బస్తాల యూరియా, 1 బస్తా డీఏపీ (DAP) మరియు 10 కేజీల జింక్ సల్ఫేట్ వేయండి." if current_lang == "te" else "🌱 Fertilizer Prescription: Apply 2 bags Urea (46% N), 1 bag DAP, and 10 kg Zinc Sulphate per acre for optimal soil health."
-                voice_text = "ఎకరాకు రెండు బస్తాల యూరియా మరియు ఒక బస్తా డీఏపీ వేయండి." if current_lang == "te" else "Apply two bags of Urea and one bag of DAP per acre."
+                reply_text = "🌱 మీ ఖచ్చితమైన ఎరువుల మోతాదును లెక్కించడానికి దయచేసి మీ నేల పరీక్ష (Soil Health Card) వివరాలను నమోదు చేయండి." if current_lang == "te" else "🌱 To calculate your exact fertilizer dosage, I am opening the Soil Health Card form. Please enter your N-P-K and pH values."
+                voice_text = "ఖచ్చితమైన ఎరువుల మోతాదును లెక్కించడానికి, మీ నేల పరీక్ష వివరాలను నమోదు చేయండి." if current_lang == "te" else "Opening Soil Health Card. Please enter your test values for an accurate fertilizer prescription."
 
             elif best_intent == "PEST_ALERT":
                 reply_text = "⚠️ పురుగుల ముందస్తు హెచ్చరిక: తేమ పెరుగుతున్నందున తెల్లదోమ ముప్పు ఉంది. ఎకరాకు 10 పసుపు రంగు జిగురు అట్టలు అమర్చండి." if current_lang == "te" else "⚠️ Pest Alert: Elevated humidity creates favorable conditions for Whiteflies. Install 10 yellow sticky traps per acre."
