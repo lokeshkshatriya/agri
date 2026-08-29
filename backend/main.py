@@ -48,13 +48,11 @@ class IrrigationRequest(BaseModel):
     crop_type: str = "tomato"
     growth_stage: str = "vegetative"
     lang: str = "te"
-    device_id: Optional[str] = None
 
 class CropPrecautionRequest(BaseModel):
     crop_type: str = "tomato"
     stage: str = "Flowering"
     lang: str = "te"
-    device_id: Optional[str] = None
 
 class SoilAnalysisRequest(BaseModel):
     n: float
@@ -63,28 +61,10 @@ class SoilAnalysisRequest(BaseModel):
     ph: float
     crop_type: Optional[str] = None
     lang: str = "en"
-    device_id: Optional[str] = None
-
-class HistoryLogRequest(BaseModel):
-    device_id: str
-    crop_type: str
-    record_type: str
-    summary: str
-    urgency: Optional[str] = None
-    lang: str = "en"
 
 class TTSRequest(BaseModel):
     text: str
     lang: str = "te"
-
-# Initialize Database on Startup
-from database import init_db, get_db, ScanHistory
-from sqlalchemy.orm import Session
-from fastapi import Depends
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
 
 @app.get("/")
 def root():
@@ -150,27 +130,6 @@ def recommend_irrigation(req: IrrigationRequest):
         print(f"Irrigation TTS error: {e}")
 
     result["audio_b64"] = audio_b64
-
-    # Log to History if device_id provided
-    if req.device_id:
-        try:
-            db = SessionLocal()
-            urgency = "amber" if result.get("rainfall_expected_mm", 0) > 10 else "emerald"
-            new_rec = ScanHistory(
-                device_id=req.device_id,
-                crop_type=req.crop_type,
-                record_type="irrigation",
-                summary=result.get("voice_text", "Irrigation Check")[:200],
-                urgency=urgency,
-                lang=req.lang
-            )
-            db.add(new_rec)
-            db.commit()
-        except Exception as db_err:
-            print(f"Failed to log irrigation history: {db_err}")
-        finally:
-            db.close()
-
     return result
 
 @app.get("/api/weather/advisory")
@@ -227,53 +186,11 @@ def parse_voice_intent(req: QueryRequest):
     result["audio_b64"] = audio_b64
     return result
 
-# -----------------
-# HISTORY ENDPOINTS
-# -----------------
-@app.post("/api/history/log")
-def log_history(req: HistoryLogRequest, db: Session = Depends(get_db)):
-    try:
-        new_record = ScanHistory(
-            device_id=req.device_id,
-            crop_type=req.crop_type,
-            record_type=req.record_type,
-            summary=req.summary,
-            urgency=req.urgency,
-            lang=req.lang
-        )
-        db.add(new_record)
-        db.commit()
-        db.refresh(new_record)
-        return {"status": "logged", "id": new_record.id}
-    except Exception as e:
-        print(f"Error logging history: {e}")
-        # Never break main flow on history failure
-        return {"status": "failed", "error": str(e)}
-
-@app.get("/api/history")
-def get_history(device_id: str, limit: int = 50, db: Session = Depends(get_db)):
-    records = db.query(ScanHistory).filter(ScanHistory.device_id == device_id).order_by(ScanHistory.created_at.desc()).limit(limit).all()
-    
-    return {
-        "records": [
-            {
-                "id": r.id,
-                "crop_type": r.crop_type,
-                "record_type": r.record_type,
-                "summary": r.summary,
-                "urgency": r.urgency,
-                "created_at": r.created_at.isoformat()
-            }
-            for r in records
-        ]
-    }
-
 @app.post("/api/crop/diagnose")
 async def diagnose_crop_image(
     file: UploadFile = File(...),
     lang: str = Form("te"),
-    crop_filter: str = Form(None),
-    device_id: Optional[str] = Form(None)
+    crop_filter: str = Form(None)
 ):
     """
     Analyzes leaf image with Deep Learning + applies Agronomy Reasoning Layer:
@@ -302,32 +219,6 @@ async def diagnose_crop_image(
             print(f"Diagnosis TTS error: {tts_err}")
             
         diag["audio_b64"] = audio_b64
-
-        # Log to History if device_id provided
-        if device_id:
-            try:
-                db = SessionLocal()
-                # Create a concise summary
-                summary = reasoning["voice_reasoning"] if "voice_reasoning" in reasoning else diag.get("diseaseName", "Diagnosis")
-                if "No Crop Leaf Detected" in summary or "పంట ఆకు గుర్తించబడలేదు" in summary:
-                    # Skip logging invalid photos
-                    pass
-                else:
-                    new_rec = ScanHistory(
-                        device_id=device_id,
-                        crop_type=diag.get("cropName", "Unknown"),
-                        record_type="diagnosis",
-                        summary=summary[:200], # keep it short
-                        urgency=reasoning.get("urgency_color", "emerald"),
-                        lang=lang
-                    )
-                    db.add(new_rec)
-                    db.commit()
-            except Exception as db_err:
-                print(f"Failed to log diagnosis history: {db_err}")
-            finally:
-                db.close()
-
         return diag
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -360,27 +251,6 @@ def analyze_soil(req: SoilAnalysisRequest):
             print(f"Soil Health TTS error: {tts_err}")
 
         res["audio_b64"] = audio_b64
-
-        # Log to History if device_id provided
-        if req.device_id:
-            try:
-                db = SessionLocal()
-                urgency = "amber" if res.get("crop_fit", {}).get("is_well_suited") is False else "emerald"
-                new_rec = ScanHistory(
-                    device_id=req.device_id,
-                    crop_type=req.crop_type or "General",
-                    record_type="soil",
-                    summary=res.get("overall_summary", "Soil Analysis")[:200],
-                    urgency=urgency,
-                    lang=req.lang
-                )
-                db.add(new_rec)
-                db.commit()
-            except Exception as db_err:
-                print(f"Failed to log soil history: {db_err}")
-            finally:
-                db.close()
-
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
