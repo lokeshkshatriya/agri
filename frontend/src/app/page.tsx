@@ -248,7 +248,7 @@ export default function Home() {
         setWeatherLoading(true);
         const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
         const res = await fetch(
-          `http://${API_BASE}:8000/api/weather/advisory?lat=${coords.lat}&lon=${coords.lon}&lang=${lang}`
+          `${API_BASE}:8000/api/weather/advisory?lat=${coords.lat}&lon=${coords.lon}&lang=${lang}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -413,7 +413,7 @@ export default function Home() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const res = await fetch(`${API_BASE}/api//voice/intent`, {
+      const res = await fetch(`${API_BASE}/api/voice/intent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: cleanText, lang, lat: coords.lat, lon: coords.lon }),
@@ -502,7 +502,7 @@ export default function Home() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const res = await fetch(`${API_BASE}/api//irrigation/recommend`, {
+      const res = await fetch(`${API_BASE}/api/irrigation/recommend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -602,7 +602,7 @@ export default function Home() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const res = await fetch(`${API_BASE}/api//soil/analyze`, {
+      const res = await fetch(`${API_BASE}/api/soil/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -692,7 +692,7 @@ export default function Home() {
 
     try {
       const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-      const res = await fetch(`${API_BASE}/api//crops/precautions`, {
+      const res = await fetch(`${API_BASE}/api/crops/precautions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -755,7 +755,7 @@ export default function Home() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-      const res = await fetch(`${API_BASE}/api//crop/diagnose`, {
+      const res = await fetch(`${API_BASE}/api/crop/diagnose`, {
         method: "POST",
         body: formData,
         signal: controller.signal,
@@ -790,7 +790,7 @@ export default function Home() {
       let finalAudioB64 = data.audio_b64;
       if (conciseVoiceText) {
         try {
-          const ttsRes = await fetch(`${API_BASE}/api//voice/tts`, {
+          const ttsRes = await fetch(`${API_BASE}/api/voice/tts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: conciseVoiceText, lang }),
