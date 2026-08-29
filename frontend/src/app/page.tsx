@@ -1657,6 +1657,17 @@ export default function Home() {
                 )}
               </div>
             ))}
+            {loading && (
+              <div className="flex justify-start animate-in fade-in duration-300">
+                <div className="bg-white border border-[#E5E3DC] rounded-3xl rounded-tl-sm p-4 shadow-sm inline-block">
+                  <div className="flex space-x-1.5 items-center">
+                    <div className="w-2 h-2 bg-[#2D5A27] rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-[#2D5A27] rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                    <div className="w-2 h-2 bg-[#2D5A27] rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Auto-scroll anchor */}
             <div ref={messagesEndRef} />
           </div>
