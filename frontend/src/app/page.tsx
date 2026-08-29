@@ -1261,8 +1261,8 @@ export default function Home() {
                         <span className="bg-emerald-100 text-emerald-900 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
                           🎯 {msg.actionName}
                         </span>
-                        {/* % Match only shown for scan queries */}
-                        {msg.diagnosisData && msg.confidence && (
+                        {/* % Match only shown for scan queries when > 0 */}
+                        {msg.diagnosisData && msg.confidence > 0 && (
                           <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                             ✨ {msg.confidence}% Match
                           </span>
