@@ -162,11 +162,23 @@ export default function Home() {
   } | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
 
-  // Check Onboarding & Load saved crop
+  const [deviceId, setDeviceId] = useState<string>("");
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Check Onboarding, Load saved crop, & Init Device ID
   useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
       try {
+        let devId = localStorage.getItem("agrisahayak_device_id");
+        if (!devId) {
+          devId = crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+          localStorage.setItem("agrisahayak_device_id", devId);
+        }
+        setDeviceId(devId);
+
         const hasOnboarded = localStorage.getItem("agrisahayak_onboarded");
         if (!hasOnboarded) {
           setShowOnboarding(true);
@@ -511,6 +523,7 @@ export default function Home() {
           crop_type: selectedCrop,
           growth_stage: selectedStage,
           lang,
+          device_id: deviceId,
         }),
         signal: controller.signal,
       });
@@ -612,6 +625,7 @@ export default function Home() {
           ph: numPh,
           crop_type: soilTargetCrop,
           lang,
+          device_id: deviceId,
         }),
         signal: controller.signal,
       });
@@ -748,6 +762,11 @@ export default function Home() {
     if (savedCrops && savedCrops.length > 0) {
       const cropTypes = savedCrops.map((c) => c.crop_type).join(",");
       formData.append("crop_filter", cropTypes);
+    }
+    
+    // Pass device_id for history logging
+    if (deviceId) {
+      formData.append("device_id", deviceId);
     }
 
     try {
@@ -1846,6 +1865,34 @@ export default function Home() {
               </div>
             </div>
 
+            {/* NEW: HISTORY BUTTON */}
+            <button
+              onClick={async () => {
+                setHistoryModalOpen(true);
+                setDrawerOpen(false);
+                setHistoryLoading(true);
+                try {
+                  const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+                  const res = await fetch(`${API_BASE}/api/history?device_id=${deviceId}`);
+                  const data = await res.json();
+                  setHistoryRecords(data.records || []);
+                } catch (e) {
+                  console.error("Failed to load history", e);
+                } finally {
+                  setHistoryLoading(false);
+                }
+              }}
+              className="w-full bg-white border border-[#E5E3DC] hover:border-[#2D5A27]/40 rounded-2xl p-3 flex items-center justify-between shadow-2xs active:scale-95 transition-all"
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">📜</span>
+                <span className="font-extrabold text-sm text-[#2A2928]">
+                  {lang === "te" ? "నా చరిత్ర" : "My History"}
+                </span>
+              </div>
+              <span className="text-[#4A4947]">➔</span>
+            </button>
+
             {/* 2. LANGUAGE & VOICE AUDIO TOGGLE */}
             <div className="bg-[#F3F2EE] border border-[#E5E3DC] rounded-2xl p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -2309,6 +2356,97 @@ export default function Home() {
                     : (lang === "te" ? "నేల ఆరోగ్యం విశ్లేషించండి" : "Analyze Soil Health")}
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+      {/* HISTORY MODAL */}
+      {/* ========================================================================= */}
+      {historyModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] animate-in fade-in">
+          <div className="bg-[#FDFCF8] rounded-t-3xl sm:rounded-3xl max-w-sm w-full h-[85vh] sm:h-[80vh] flex flex-col shadow-xl border border-[#E5E3DC]">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-[#E5E3DC] p-5 pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">📜</span>
+                <div>
+                  <span className="text-sm font-extrabold text-[#2D5A27] block">
+                    {lang === "te" ? "నా చరిత్ర" : "My History"}
+                  </span>
+                  <span className="text-[10px] text-[#4A4947] block font-medium">
+                    {lang === "te" ? "గత విశ్లేషణలు" : "Past diagnoses & checks"}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setHistoryModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-[#F3F2EE] hover:bg-[#E5E3DC] text-[#4A4947] font-bold text-xs flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {historyLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-6 h-6 border-4 border-[#2D5A27] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : historyRecords.length === 0 ? (
+                <div className="bg-white/60 border border-[#E5E3DC] rounded-3xl p-6 text-center space-y-2 text-[#4A4947] my-auto">
+                  <span className="text-3xl block">🌱</span>
+                  <span className="text-xs font-bold block text-[#2A2928]">
+                    {lang === "te" ? "చరిత్ర లేదు" : "No history yet"}
+                  </span>
+                  <p className="text-[11px] text-[#4A4947]/70">
+                    {lang === "te" ? "పంటను స్కాన్ చేయండి లేదా నీటిపారుదల తనిఖీ చేయండి." : "Scan a crop or check irrigation to get started."}
+                  </p>
+                </div>
+              ) : (
+                historyRecords.map((record, i) => {
+                  let icon = "📝";
+                  if (record.record_type === "diagnosis") icon = "🩺";
+                  if (record.record_type === "irrigation") icon = "💧";
+                  if (record.record_type === "soil") icon = "🧪";
+
+                  let bgColors = "bg-white border-[#E5E3DC]";
+                  let badgeColors = "bg-[#EAF3E8] text-[#2D5A27]";
+                  if (record.urgency === "red") {
+                    badgeColors = "bg-red-100 text-red-800";
+                    bgColors = "bg-red-50/30 border-red-200";
+                  } else if (record.urgency === "amber") {
+                    badgeColors = "bg-amber-100 text-amber-800";
+                    bgColors = "bg-amber-50/30 border-amber-200";
+                  }
+
+                  const dateStr = new Date(record.created_at).toLocaleDateString(undefined, {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                  });
+
+                  return (
+                    <div key={i} className={`rounded-2xl border p-3 shadow-2xs space-y-1.5 ${bgColors}`}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-lg">{icon}</span>
+                          <span className="font-extrabold text-xs text-[#2A2928] capitalize">
+                            {record.crop_type}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${badgeColors}`}>
+                          {record.record_type}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#4A4947] font-medium leading-snug line-clamp-2">
+                        {record.summary}
+                      </p>
+                      <div className="text-right pt-1">
+                        <span className="text-[9px] text-[#4A4947]/60 font-semibold">{dateStr}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
