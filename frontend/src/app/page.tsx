@@ -927,10 +927,10 @@ export default function Home() {
   // 4. ONBOARDING: LANGUAGE & SINGLE CROP SELECTION PROMPT FIRST
   // -------------------------------------------------------------
   if (showOnboarding) {
-    const onboardingCropsList = [
       { id: "tomato", icon: "🍅", name_en: "Tomato", name_te: "టమాటా" },
+      { id: "potato", icon: "🥔", name_en: "Potato", name_te: "బంగాళాదుంప" },
+      { id: "chilli", icon: "🌶️", name_en: "Chilli / Capsicum", name_te: "మిరప / క్యాప్సికమ్" },
       { id: "rice", icon: "🌾", name_en: "Rice (Paddy)", name_te: "వరి" },
-      { id: "chilli", icon: "🌶️", name_en: "Chilli (Mirchi)", name_te: "మిరప" },
       { id: "cotton", icon: "🌿", name_en: "Cotton", name_te: "పత్తి" },
       { id: "groundnut", icon: "🥜", name_en: "Groundnut", name_te: "వేరుశనగ" },
       { id: "maize", icon: "🌽", name_en: "Maize (Corn)", name_te: "మొక్కజొన్న" },
@@ -2148,8 +2148,9 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
               {[
                 { id: "tomato", icon: "🍅", name_en: "Tomato", name_te: "టమాటా" },
+                { id: "potato", icon: "🥔", name_en: "Potato", name_te: "బంగాళాదుంప" },
+                { id: "chilli", icon: "🌶️", name_en: "Chilli / Capsicum", name_te: "మిరప / క్యాప్సికమ్" },
                 { id: "rice", icon: "🌾", name_en: "Rice", name_te: "వరి" },
-                { id: "chilli", icon: "🌶️", name_en: "Chilli", name_te: "మిరప" },
                 { id: "cotton", icon: "🌿", name_en: "Cotton", name_te: "పత్తి" },
                 { id: "groundnut", icon: "🥜", name_en: "Groundnut", name_te: "వేరుశనగ" },
                 { id: "maize", icon: "🌽", name_en: "Maize", name_te: "మొక్కజొన్న" },
