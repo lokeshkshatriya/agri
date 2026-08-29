@@ -174,7 +174,11 @@ export default function Home() {
       try {
         let devId = localStorage.getItem("agrisahayak_device_id");
         if (!devId) {
-          devId = crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+          try {
+            devId = (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `dev-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+          } catch(err) {
+            devId = `dev-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+          }
           localStorage.setItem("agrisahayak_device_id", devId);
         }
         setDeviceId(devId);
