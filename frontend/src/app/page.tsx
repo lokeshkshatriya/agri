@@ -790,7 +790,7 @@ export default function Home() {
       let finalAudioB64 = data.audio_b64;
       if (conciseVoiceText) {
         try {
-          const ttsRes = await fetch(`http://${host}:8000/api/voice/tts`, {
+          const ttsRes = await fetch(`http://${API_BASE}:8000/api/voice/tts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: conciseVoiceText, lang }),
