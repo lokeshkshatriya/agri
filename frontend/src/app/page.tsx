@@ -248,7 +248,7 @@ export default function Home() {
         setWeatherLoading(true);
         const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
         const res = await fetch(
-          `${API_BASE}:8000/api/weather/advisory?lat=${coords.lat}&lon=${coords.lon}&lang=${lang}`
+          `${API_BASE}/api/weather/advisory?lat=${coords.lat}&lon=${coords.lon}&lang=${lang}`
         );
         if (res.ok) {
           const data = await res.json();
