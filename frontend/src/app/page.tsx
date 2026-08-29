@@ -917,7 +917,7 @@ export default function Home() {
               <span className="text-3xl">🌾</span>
               <div>
                 <h1 className="font-black text-lg text-[#2D5A27] leading-tight">
-                  {lang === "te" ? "అగ్రి సహాయక్" : "AgriSahayak"}
+                  {lang === "te" ? "ఉర్వన్ AI" : "UrvanAI"}
                 </h1>
                 <span className="text-[11px] text-[#4A4947] font-medium">
                   {lang === "te" ? "రైతు డిజిటల్ సహాయకుడు" : "AI Farming Copilot"}
@@ -1063,7 +1063,7 @@ export default function Home() {
           >
             <h1 className="text-xl font-black text-[#2D5A27] tracking-tight flex items-center space-x-1.5">
               <span>🌾</span>
-              <span>{lang === "te" ? "అగ్రి సహాయక్" : "AgriSahayak"}</span>
+              <span>{lang === "te" ? "ఉర్వన్ AI" : "UrvanAI"}</span>
             </h1>
           </div>
         </div>
