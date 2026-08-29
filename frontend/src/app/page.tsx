@@ -722,7 +722,15 @@ export default function Home() {
 
       if (res.ok) {
         const data = await res.json();
-        const updatedList = savedCrops.map((c) => {
+        
+        // Fix: Read from localStorage directly to avoid React stale closure bug during rapid successive calls
+        let currentCrops: SavedCrop[] = [];
+        try {
+          const stored = localStorage.getItem("agrisahayak_my_crops");
+          if (stored) currentCrops = JSON.parse(stored);
+        } catch(e) {}
+        
+        const updatedList = currentCrops.map((c) => {
           if (c.id === crop.id) {
             return {
               ...c,
